@@ -32,11 +32,11 @@ const pedidosRef = db.collection('pedidos');
 // ==========================================
 // VARIÁVEIS DE ESTADO
 // ==========================================
-let mesaSelecionada = null;        // Objeto da mesa selecionada
-let contaAtual = null;            // ID da conta atual
-let carrinho = [];               // Array de itens no carrinho
-let produtos = [];              // Array de produtos do cardápio
-let mesaIdSelecionada = null;   // ID do documento da mesa
+let mesaSelecionada = null;
+let contaAtual = null;
+let carrinho = [];
+let produtos = [];
+let mesaIdSelecionada = null;
 
 // ==========================================
 // ELEMENTOS DOM
@@ -52,7 +52,6 @@ const tituloMesa = document.getElementById('tituloMesa');
 const statusMesa = document.getElementById('statusMesa');
 const btnVoltarMesas = document.getElementById('btnVoltarMesas');
 const btnFinalizarPedido = document.getElementById('btnFinalizarPedido');
-const btnFecharConta = document.getElementById('btnFecharConta');
 const horaAtual = document.getElementById('horaAtual');
 
 // ==========================================
@@ -72,7 +71,6 @@ let modalCallback = null;
 // INICIALIZAÇÃO
 // ==========================================
 
-// Atualiza o relógio
 function atualizarRelogio() {
     const now = new Date();
     horaAtual.textContent = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -84,12 +82,10 @@ setInterval(atualizarRelogio, 30000);
 // FUNÇÕES DE INICIALIZAÇÃO DAS MESAS
 // ==========================================
 
-// Cria as mesas automaticamente se não existirem
 async function inicializarMesas() {
     try {
         const snapshot = await mesasRef.get();
         if (snapshot.empty) {
-            // Cria as mesas de 01 a 20
             const batch = db.batch();
             for (let i = 1; i <= 20; i++) {
                 const numero = i.toString().padStart(2, '0');
@@ -113,7 +109,6 @@ async function inicializarMesas() {
 // CARREGAR DADOS
 // ==========================================
 
-// Carrega os produtos do Firestore
 async function carregarProdutos() {
     try {
         const snapshot = await produtosRef.where('ativo', '==', true).get();
@@ -145,7 +140,6 @@ function renderizarMesas(snapshot) {
         return;
     }
     
-    // Ordena as mesas por número
     const mesas = [];
     snapshot.forEach(doc => {
         mesas.push({ id: doc.id, ...doc.data() });
@@ -184,26 +178,19 @@ async function selecionarMesa(mesa, id) {
     statusMesa.textContent = mesa.status === 'disponivel' ? 'DISPONÍVEL' : 'OCUPADA';
     statusMesa.className = `status-badge ${mesa.status}`;
     
-    // Limpa o carrinho
     carrinho = [];
     atualizarCarrinho();
     
-    // Se a mesa está ocupada, carrega a conta existente
     if (mesa.status === 'ocupada' && mesa.contaAbertaId) {
         contaAtual = mesa.contaAbertaId;
         await carregarItensConta(contaAtual);
-        btnFecharConta.style.display = 'block';
     } else {
-        // Mesa disponível - criar nova conta
         contaAtual = null;
-        btnFecharConta.style.display = 'none';
     }
     
-    // Mostra a tela de pedido
     telaMesas.style.display = 'none';
     telaPedido.style.display = 'block';
     
-    // Carrega os produtos
     await carregarProdutos();
     renderizarProdutos();
 }
@@ -267,9 +254,7 @@ function renderizarProdutos() {
 // CARRINHO - FUNÇÕES
 // ==========================================
 
-// Adiciona produto ao carrinho
 function adicionarAoCarrinho(produto) {
-    // Verifica se o produto já está no carrinho
     const itemExistente = carrinho.find(item => item.produtoId === produto.id);
     
     if (itemExistente) {
@@ -277,7 +262,7 @@ function adicionarAoCarrinho(produto) {
         itemExistente.subtotal = itemExistente.quantidade * itemExistente.preco;
     } else {
         carrinho.push({
-            id: null, // Será preenchido ao salvar
+            id: null,
             produtoId: produto.id,
             nome: produto.nome,
             preco: produto.preco,
@@ -289,7 +274,6 @@ function adicionarAoCarrinho(produto) {
     atualizarCarrinho();
 }
 
-// Atualiza a quantidade de um item
 function atualizarQuantidade(index, delta) {
     const item = carrinho[index];
     if (!item) return;
@@ -302,7 +286,6 @@ function atualizarQuantidade(index, delta) {
     atualizarCarrinho();
 }
 
-// Remove item do carrinho
 function removerItemCarrinho(index) {
     mostrarConfirmacao('Deseja realmente remover este item?', () => {
         carrinho.splice(index, 1);
@@ -310,7 +293,6 @@ function removerItemCarrinho(index) {
     });
 }
 
-// Atualiza a interface do carrinho
 function atualizarCarrinho() {
     carrinhoItens.innerHTML = '';
     
@@ -352,7 +334,6 @@ function atualizarCarrinho() {
     btnFinalizarPedido.disabled = false;
 }
 
-// Torna as funções globais para uso no HTML
 window.atualizarQuantidade = atualizarQuantidade;
 window.removerItemCarrinho = removerItemCarrinho;
 
@@ -367,9 +348,7 @@ btnFinalizarPedido.addEventListener('click', async () => {
     }
     
     try {
-        // Verifica se já existe uma conta aberta para esta mesa
         if (!contaAtual) {
-            // Cria uma nova conta
             const contaData = {
                 mesaId: mesaIdSelecionada,
                 mesaNumero: parseInt(mesaSelecionada.numero),
@@ -382,33 +361,26 @@ btnFinalizarPedido.addEventListener('click', async () => {
             const docRef = await contasRef.add(contaData);
             contaAtual = docRef.id;
             
-            // Atualiza a mesa para ocupada
             await mesasRef.doc(mesaIdSelecionada).update({
                 status: 'ocupada',
                 contaAbertaId: contaAtual
             });
             
-            // Atualiza o status da mesa na interface
             statusMesa.textContent = 'OCUPADA';
             statusMesa.className = 'status-badge ocupada';
-            btnFecharConta.style.display = 'block';
         }
         
-        // Salva os itens da conta
         const batch = db.batch();
         const itensParaSalvar = [];
         
         for (const item of carrinho) {
-            // Verifica se o item já existe na conta (atualiza ou cria)
             if (item.id) {
-                // Atualiza o item existente
                 const itemRef = itensContaRef.doc(item.id);
                 batch.update(itemRef, {
                     quantidade: item.quantidade,
                     subtotal: item.subtotal
                 });
             } else {
-                // Cria novo item
                 const itemData = {
                     contaId: contaAtual,
                     produtoId: item.produtoId,
@@ -424,7 +396,6 @@ btnFinalizarPedido.addEventListener('click', async () => {
             itensParaSalvar.push(item);
         }
         
-        // Cria o pedido para a cozinha
         const pedidoData = {
             contaId: contaAtual,
             mesaNumero: parseInt(mesaSelecionada.numero),
@@ -440,85 +411,28 @@ btnFinalizarPedido.addEventListener('click', async () => {
         
         await pedidosRef.add(pedidoData);
         
-        // Calcula o total da conta
         let totalConta = 0;
         for (const item of itensParaSalvar) {
             totalConta += item.subtotal;
         }
         
-        // Atualiza o total da conta
         await contasRef.doc(contaAtual).update({
             total: totalConta
         });
         
-        // Executa o batch de itens
         await batch.commit();
         
-        // Limpa o carrinho
         carrinho = [];
         atualizarCarrinho();
         
-        // Recarrega os itens da conta para manter consistência
         await carregarItensConta(contaAtual);
         
         mostrarMensagem('✅ Pedido enviado para a cozinha!');
-        
-        // Atualiza o badge da mesa na lista
-        await carregarMesas();
         
     } catch (error) {
         console.error('❌ Erro ao finalizar pedido:', error);
         mostrarMensagem('Erro ao salvar pedido. Verifique sua conexão.');
     }
-});
-
-// ==========================================
-// FECHAR CONTA
-// ==========================================
-
-btnFecharConta.addEventListener('click', () => {
-    if (!contaAtual) return;
-    
-    // Calcula o total
-    let total = 0;
-    carrinho.forEach(item => total += item.subtotal);
-    
-    mostrarConfirmacao(
-        `Confirmar pagamento da Mesa ${mesaSelecionada.numero}?\nTotal: R$ ${total.toFixed(2)}`,
-        async () => {
-            try {
-                // Fecha a conta
-                await contasRef.doc(contaAtual).update({
-                    status: 'fechada',
-                    fechadaEm: firebase.firestore.FieldValue.serverTimestamp()
-                });
-                
-                // Libera a mesa
-                await mesasRef.doc(mesaIdSelecionada).update({
-                    status: 'disponivel',
-                    contaAbertaId: null
-                });
-                
-                mostrarMensagem('✅ Conta fechada com sucesso!');
-                
-                // Limpa o estado
-                contaAtual = null;
-                carrinho = [];
-                atualizarCarrinho();
-                btnFecharConta.style.display = 'none';
-                
-                // Volta para a lista de mesas
-                voltarParaMesas();
-                
-                // Recarrega as mesas
-                await carregarMesas();
-                
-            } catch (error) {
-                console.error('❌ Erro ao fechar conta:', error);
-                mostrarMensagem('Erro ao fechar conta. Verifique sua conexão.');
-            }
-        }
-    );
 });
 
 // ==========================================
@@ -534,7 +448,6 @@ function voltarParaMesas() {
     contaAtual = null;
     carrinho = [];
     atualizarCarrinho();
-    btnFecharConta.style.display = 'none';
     carregarMesas();
 }
 
@@ -543,7 +456,6 @@ function voltarParaMesas() {
 // ==========================================
 
 function carregarMesas() {
-    // Usa onSnapshot para atualizações em tempo real
     mesasRef.onSnapshot((snapshot) => {
         renderizarMesas(snapshot);
     }, (error) => {
@@ -588,7 +500,6 @@ modalMensagemOk.addEventListener('click', () => {
     modalMensagem.style.display = 'none';
 });
 
-// Fechar modal clicando fora
 modalConfirmacao.addEventListener('click', (e) => {
     if (e.target === modalConfirmacao) {
         modalConfirmacao.style.display = 'none';
@@ -608,26 +519,20 @@ modalMensagem.addEventListener('click', (e) => {
 
 async function iniciarSistema() {
     try {
-        // Verifica conexão com Firebase
         await db.collection('_').get().catch(() => {
             throw new Error('Falha ao conectar ao Firebase');
         });
         
-        // Inicializa mesas
         await inicializarMesas();
-        
-        // Carrega mesas em tempo real
         carregarMesas();
-        
-        // Carrega produtos
         await carregarProdutos();
         
         console.log('🚀 Sistema do Garçom inicializado com sucesso!');
+        console.log('📝 Garçom: apenas faz pedidos. Caixa finaliza as contas.');
     } catch (error) {
         console.error('❌ Erro ao iniciar sistema:', error);
         mostrarMensagem('Erro ao conectar ao Firebase. Verifique sua configuração.');
     }
 }
 
-// Inicia o sistema quando a página carregar
 document.addEventListener('DOMContentLoaded', iniciarSistema);
