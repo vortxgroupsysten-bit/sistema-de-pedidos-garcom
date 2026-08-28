@@ -1,538 +1,531 @@
-// ==========================================
-// CONEXÃO COM O FIREBASE
-// ==========================================
-
-// ==========================================
-// 🔥 CONFIGURAÇÃO DO FIREBASE
-// ==========================================
-const firebaseConfig = {
-    apiKey: "AIzaSyC8hgwgOXHNdw4poG_aoGScuEhwQcWIkvM",
-    authDomain: "sistema-de-pedidos-8fdd3.firebaseapp.com",
-    projectId: "sistema-de-pedidos-8fdd3",
-    storageBucket: "sistema-de-pedidos-8fdd3.firebasestorage.app",
-    messagingSenderId: "284081834213",
-    appId: "1:284081834213:web:c828727a521d2a8999ec0c",
-    measurementId: "G-VPQFXSWVVD"
-};
-// ==========================================
-
-// Inicializa o Firebase
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-
-// ==========================================
-// REFERÊNCIAS DAS COLLECTIONS
-// ==========================================
-const mesasRef = db.collection('mesas');
-const produtosRef = db.collection('produtos');
-const contasRef = db.collection('contas');
-const itensContaRef = db.collection('itensConta');
-const pedidosRef = db.collection('pedidos');
-
-// ==========================================
-// VARIÁVEIS DE ESTADO
-// ==========================================
-let mesaSelecionada = null;
-let contaAtual = null;
-let carrinho = [];
-let produtos = [];
-let mesaIdSelecionada = null;
-
-// ==========================================
-// ELEMENTOS DOM
-// ==========================================
-const telaMesas = document.getElementById('telaMesas');
-const telaPedido = document.getElementById('telaPedido');
-const listaMesas = document.getElementById('listaMesas');
-const listaProdutos = document.getElementById('listaProdutos');
-const carrinhoItens = document.getElementById('carrinhoItens');
-const totalValor = document.getElementById('totalValor');
-const totalItens = document.getElementById('totalItens');
-const tituloMesa = document.getElementById('tituloMesa');
-const statusMesa = document.getElementById('statusMesa');
-const btnVoltarMesas = document.getElementById('btnVoltarMesas');
-const btnFinalizarPedido = document.getElementById('btnFinalizarPedido');
-const horaAtual = document.getElementById('horaAtual');
-
-// ==========================================
-// MODAL
-// ==========================================
-const modalConfirmacao = document.getElementById('modalConfirmacao');
-const modalMensagem = document.getElementById('modalMensagem');
-const mensagemModal = document.getElementById('mensagemModal');
-const mensagemTexto = document.getElementById('mensagemTexto');
-const modalCancelar = document.getElementById('modalCancelar');
-const modalConfirmar = document.getElementById('modalConfirmar');
-const modalMensagemOk = document.getElementById('modalMensagemOk');
-
-let modalCallback = null;
-
-// ==========================================
-// INICIALIZAÇÃO
-// ==========================================
-
-function atualizarRelogio() {
-    const now = new Date();
-    horaAtual.textContent = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+/* ========================================== */
+/* RESET E BASE                               */
+/* ========================================== */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
-atualizarRelogio();
-setInterval(atualizarRelogio, 30000);
 
-// ==========================================
-// FUNÇÕES DE INICIALIZAÇÃO DAS MESAS
-// ==========================================
+:root {
+    --primary: #e74c3c;
+    --primary-dark: #c0392b;
+    --success: #27ae60;
+    --success-dark: #1e8449;
+    --warning: #f39c12;
+    --gray: #95a5a6;
+    --gray-light: #ecf0f1;
+    --gray-dark: #2c3e50;
+    --white: #ffffff;
+    --shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    --radius: 12px;
+    --radius-sm: 8px;
+}
 
-async function inicializarMesas() {
-    try {
-        const snapshot = await mesasRef.get();
-        if (snapshot.empty) {
-            const batch = db.batch();
-            for (let i = 1; i <= 20; i++) {
-                const numero = i.toString().padStart(2, '0');
-                const docRef = mesasRef.doc(`mesa_${numero}`);
-                batch.set(docRef, {
-                    numero: numero,
-                    status: 'disponivel',
-                    contaAbertaId: null
-                });
-            }
-            await batch.commit();
-            console.log('✅ Mesas criadas automaticamente');
-        }
-    } catch (error) {
-        console.error('❌ Erro ao inicializar mesas:', error);
-        mostrarMensagem('Erro ao inicializar mesas. Verifique sua conexão.');
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--gray-light);
+    color: var(--gray-dark);
+    min-height: 100vh;
+    padding: 16px;
+    max-width: 480px;
+    margin: 0 auto;
+    padding-bottom: 100px;
+}
+
+/* ========================================== */
+/* HEADER                                     */
+/* ========================================== */
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    margin-bottom: 16px;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.header h1 {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--gray-dark);
+    letter-spacing: -0.5px;
+}
+
+.header-actions {
+    font-size: 14px;
+    color: var(--gray);
+}
+
+.btn-voltar {
+    background: none;
+    border: none;
+    font-size: 28px;
+    cursor: pointer;
+    padding: 4px 8px;
+    color: var(--gray-dark);
+    transition: transform 0.2s;
+}
+
+.btn-voltar:active {
+    transform: scale(0.9);
+}
+
+.status-badge {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 20px;
+    background: var(--success);
+    color: white;
+}
+
+.status-badge.ocupada {
+    background: var(--primary);
+}
+
+/* ========================================== */
+/* MESAS                                      */
+/* ========================================== */
+.grid-mesas {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+}
+
+.card-mesa {
+    background: var(--white);
+    border-radius: var(--radius);
+    padding: 16px 8px;
+    text-align: center;
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    border: 3px solid transparent;
+    position: relative;
+}
+
+.card-mesa:active {
+    transform: scale(0.95);
+}
+
+.card-mesa .numero {
+    font-size: 20px;
+    font-weight: 700;
+    display: block;
+}
+
+.card-mesa .status {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    display: inline-block;
+    margin-top: 4px;
+}
+
+.card-mesa.disponivel {
+    border-color: var(--success);
+}
+
+.card-mesa.disponivel .status {
+    background: var(--success);
+    color: white;
+}
+
+.card-mesa.ocupada {
+    border-color: var(--primary);
+}
+
+.card-mesa.ocupada .status {
+    background: var(--primary);
+    color: white;
+}
+
+.card-mesa .badge-pedidos {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: var(--warning);
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ========================================== */
+/* TELAS                                      */
+/* ========================================== */
+.tela {
+    display: block;
+}
+
+.tela[style*="display: none"] {
+    display: none !important;
+}
+
+/* ========================================== */
+/* SEÇÕES                                     */
+/* ========================================== */
+.secao {
+    background: var(--white);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+}
+
+.secao h2 {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: var(--gray-dark);
+}
+
+/* ========================================== */
+/* PRODUTOS                                   */
+/* ========================================== */
+.lista-produtos {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.btn-produto {
+    background: var(--gray-light);
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 12px 8px;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s;
+}
+
+.btn-produto:active {
+    transform: scale(0.95);
+}
+
+.btn-produto .nome {
+    font-size: 14px;
+    font-weight: 600;
+    display: block;
+}
+
+.btn-produto .preco {
+    font-size: 12px;
+    color: var(--gray);
+    display: block;
+    margin-top: 2px;
+}
+
+/* ========================================== */
+/* CARRINHO                                   */
+/* ========================================== */
+.carrinho-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.badge-itens {
+    background: var(--gray-light);
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.lista-carrinho {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+/* ========================================== */
+/* ITEM DO CARRINHO                          */
+/* ========================================== */
+.item-carrinho {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--gray-light);
+}
+
+.item-carrinho:last-child {
+    border-bottom: none;
+}
+
+.item-carrinho .info {
+    flex: 1;
+    min-width: 0;
+}
+
+.item-carrinho .nome-item {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.item-carrinho .preco-item {
+    font-size: 12px;
+    color: var(--gray);
+}
+
+.item-carrinho .controles {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.item-carrinho .controles button {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 50%;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    background: var(--gray-light);
+    color: var(--gray-dark);
+    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.item-carrinho .controles button:active {
+    background: var(--gray);
+}
+
+.item-carrinho .controles .qtd {
+    font-weight: 700;
+    font-size: 16px;
+    min-width: 24px;
+    text-align: center;
+}
+
+.item-carrinho .subtotal {
+    font-size: 13px;
+    font-weight: 600;
+    min-width: 60px;
+    text-align: right;
+}
+
+.btn-excluir-item {
+    background: none;
+    border: none;
+    color: var(--primary);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 4px 8px;
+    font-weight: 700;
+}
+
+/* ========================================== */
+/* CARRINHO TOTAL                            */
+/* ========================================== */
+.carrinho-total {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-top: 2px solid var(--gray-light);
+    margin-top: 8px;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.total-valor {
+    color: var(--primary);
+}
+
+/* ========================================== */
+/* BOTÕES                                     */
+/* ========================================== */
+.btn-principal {
+    width: 100%;
+    padding: 16px;
+    border: none;
+    border-radius: var(--radius);
+    background: var(--primary);
+    color: white;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s;
+}
+
+.btn-principal:active {
+    transform: scale(0.98);
+}
+
+.btn-principal:disabled {
+    background: var(--gray);
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.btn-secundario {
+    width: 100%;
+    padding: 16px;
+    border: none;
+    border-radius: var(--radius);
+    background: var(--success);
+    color: white;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s;
+    margin-top: 8px;
+}
+
+.btn-secundario:active {
+    transform: scale(0.98);
+}
+
+.carrinho-actions {
+    margin-top: 8px;
+}
+
+/* ========================================== */
+/* MODAL                                      */
+/* ========================================== */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+}
+
+.modal-content {
+    background: white;
+    border-radius: var(--radius);
+    padding: 24px;
+    max-width: 340px;
+    width: 100%;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.modal-mensagem {
+    font-size: 16px;
+    text-align: center;
+    margin-bottom: 20px;
+    line-height: 1.5;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.modal-actions button {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-modal-cancelar {
+    background: var(--gray-light);
+    color: var(--gray-dark);
+}
+
+.btn-modal-confirmar {
+    background: var(--primary);
+    color: white;
+}
+
+#modalMensagemOk {
+    background: var(--primary);
+    color: white;
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+/* ========================================== */
+/* RESPONSIVO                                 */
+/* ========================================== */
+@media (max-width: 400px) {
+    .grid-mesas {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+    }
+    
+    .lista-produtos {
+        grid-template-columns: 1fr 1fr;
+    }
+    
+    .card-mesa .numero {
+        font-size: 16px;
+    }
+    
+    .header h1 {
+        font-size: 18px;
     }
 }
 
-// ==========================================
-// CARREGAR DADOS
-// ==========================================
-
-async function carregarProdutos() {
-    try {
-        const snapshot = await produtosRef.where('ativo', '==', true).get();
-        produtos = [];
-        snapshot.forEach(doc => {
-            produtos.push({
-                id: doc.id,
-                ...doc.data()
-            });
-        });
-        console.log(`✅ ${produtos.length} produtos carregados`);
-        return produtos;
-    } catch (error) {
-        console.error('❌ Erro ao carregar produtos:', error);
-        mostrarMensagem('Erro ao carregar produtos. Verifique sua conexão.');
-        return [];
+@media (min-width: 481px) {
+    body {
+        max-width: 600px;
+        padding: 24px;
+    }
+    
+    .grid-mesas {
+        grid-template-columns: repeat(5, 1fr);
+    }
+    
+    .lista-produtos {
+        grid-template-columns: repeat(3, 1fr);
     }
 }
 
-// ==========================================
-// RENDERIZAR MESAS
-// ==========================================
-
-function renderizarMesas(snapshot) {
-    listaMesas.innerHTML = '';
-    
-    if (snapshot.empty) {
-        listaMesas.innerHTML = '<p class="texto-vazio">Nenhuma mesa encontrada.</p>';
-        return;
+@media (min-width: 768px) {
+    body {
+        max-width: 800px;
     }
     
-    const mesas = [];
-    snapshot.forEach(doc => {
-        mesas.push({ id: doc.id, ...doc.data() });
-    });
-    mesas.sort((a, b) => parseInt(a.numero) - parseInt(b.numero));
-    
-    mesas.forEach(mesa => {
-        const card = document.createElement('div');
-        card.className = `card-mesa ${mesa.status}`;
-        
-        const statusText = mesa.status === 'disponivel' ? 'DISPONÍVEL' : 'OCUPADA';
-        
-        card.innerHTML = `
-            <span class="numero">${mesa.numero}</span>
-            <span class="status">${statusText}</span>
-            ${mesa.status === 'ocupada' ? '<span class="badge-pedidos">●</span>' : ''}
-        `;
-        
-        card.addEventListener('click', () => {
-            selecionarMesa(mesa, mesa.id);
-        });
-        
-        listaMesas.appendChild(card);
-    });
-}
-
-// ==========================================
-// SELECIONAR MESA
-// ==========================================
-
-async function selecionarMesa(mesa, id) {
-    mesaSelecionada = mesa;
-    mesaIdSelecionada = id;
-    
-    tituloMesa.textContent = `Mesa ${mesa.numero}`;
-    statusMesa.textContent = mesa.status === 'disponivel' ? 'DISPONÍVEL' : 'OCUPADA';
-    statusMesa.className = `status-badge ${mesa.status}`;
-    
-    carrinho = [];
-    atualizarCarrinho();
-    
-    if (mesa.status === 'ocupada' && mesa.contaAbertaId) {
-        contaAtual = mesa.contaAbertaId;
-        await carregarItensConta(contaAtual);
-    } else {
-        contaAtual = null;
+    .grid-mesas {
+        grid-template-columns: repeat(5, 1fr);
     }
     
-    telaMesas.style.display = 'none';
-    telaPedido.style.display = 'block';
-    
-    await carregarProdutos();
-    renderizarProdutos();
-}
-
-// ==========================================
-// CARREGAR ITENS DA CONTA EXISTENTE
-// ==========================================
-
-async function carregarItensConta(contaId) {
-    try {
-        const snapshot = await itensContaRef.where('contaId', '==', contaId).get();
-        carrinho = [];
-        snapshot.forEach(doc => {
-            const item = doc.data();
-            carrinho.push({
-                id: doc.id,
-                produtoId: item.produtoId,
-                nome: item.nome,
-                preco: item.preco,
-                quantidade: item.quantidade,
-                subtotal: item.subtotal
-            });
-        });
-        atualizarCarrinho();
-        console.log(`✅ ${carrinho.length} itens carregados da conta`);
-    } catch (error) {
-        console.error('❌ Erro ao carregar itens da conta:', error);
-        mostrarMensagem('Erro ao carregar itens da conta.');
+    .lista-produtos {
+        grid-template-columns: repeat(4, 1fr);
     }
 }
 
-// ==========================================
-// RENDERIZAR PRODUTOS
-// ==========================================
-
-function renderizarProdutos() {
-    listaProdutos.innerHTML = '';
-    
-    if (produtos.length === 0) {
-        listaProdutos.innerHTML = '<p class="texto-vazio">Nenhum produto disponível.</p>';
-        return;
-    }
-    
-    produtos.forEach(produto => {
-        const btn = document.createElement('button');
-        btn.className = 'btn-produto';
-        btn.innerHTML = `
-            <span class="nome">${produto.nome}</span>
-            <span class="preco">R$ ${produto.preco.toFixed(2)}</span>
-        `;
-        
-        btn.addEventListener('click', () => {
-            adicionarAoCarrinho(produto);
-        });
-        
-        listaProdutos.appendChild(btn);
-    });
+/* ========================================== */
+/* UTILITÁRIOS                                */
+/* ========================================== */
+.texto-vazio {
+    text-align: center;
+    color: var(--gray);
+    padding: 20px 0;
+    font-size: 14px;
 }
 
-// ==========================================
-// CARRINHO - FUNÇÕES
-// ==========================================
-
-function adicionarAoCarrinho(produto) {
-    const itemExistente = carrinho.find(item => item.produtoId === produto.id);
-    
-    if (itemExistente) {
-        itemExistente.quantidade++;
-        itemExistente.subtotal = itemExistente.quantidade * itemExistente.preco;
-    } else {
-        carrinho.push({
-            id: null,
-            produtoId: produto.id,
-            nome: produto.nome,
-            preco: produto.preco,
-            quantidade: 1,
-            subtotal: produto.preco
-        });
-    }
-    
-    atualizarCarrinho();
+.oculto {
+    display: none !important;
 }
-
-function atualizarQuantidade(index, delta) {
-    const item = carrinho[index];
-    if (!item) return;
-    
-    const novaQtd = item.quantidade + delta;
-    if (novaQtd < 1) return;
-    
-    item.quantidade = novaQtd;
-    item.subtotal = item.quantidade * item.preco;
-    atualizarCarrinho();
-}
-
-function removerItemCarrinho(index) {
-    mostrarConfirmacao('Deseja realmente remover este item?', () => {
-        carrinho.splice(index, 1);
-        atualizarCarrinho();
-    });
-}
-
-function atualizarCarrinho() {
-    carrinhoItens.innerHTML = '';
-    
-    if (carrinho.length === 0) {
-        carrinhoItens.innerHTML = '<p class="texto-vazio">Nenhum item adicionado.</p>';
-        totalValor.textContent = 'R$ 0,00';
-        totalItens.textContent = '0 itens';
-        btnFinalizarPedido.disabled = true;
-        return;
-    }
-    
-    let total = 0;
-    let qtdTotal = 0;
-    
-    carrinho.forEach((item, index) => {
-        total += item.subtotal;
-        qtdTotal += item.quantidade;
-        
-        const div = document.createElement('div');
-        div.className = 'item-carrinho';
-        div.innerHTML = `
-            <div class="info">
-                <div class="nome-item">${item.nome}</div>
-                <div class="preco-item">R$ ${item.preco.toFixed(2)}</div>
-            </div>
-            <div class="controles">
-                <button onclick="window.atualizarQuantidade(${index}, -1)">−</button>
-                <span class="qtd">${item.quantidade}</span>
-                <button onclick="window.atualizarQuantidade(${index}, 1)">+</button>
-            </div>
-            <span class="subtotal">R$ ${item.subtotal.toFixed(2)}</span>
-            <button class="btn-excluir-item" onclick="window.removerItemCarrinho(${index})">✕</button>
-        `;
-        carrinhoItens.appendChild(div);
-    });
-    
-    totalValor.textContent = `R$ ${total.toFixed(2)}`;
-    totalItens.textContent = `${qtdTotal} itens`;
-    btnFinalizarPedido.disabled = false;
-}
-
-window.atualizarQuantidade = atualizarQuantidade;
-window.removerItemCarrinho = removerItemCarrinho;
-
-// ==========================================
-// FINALIZAR PEDIDO
-// ==========================================
-
-btnFinalizarPedido.addEventListener('click', async () => {
-    if (carrinho.length === 0) {
-        mostrarMensagem('Adicione pelo menos um item ao pedido.');
-        return;
-    }
-    
-    try {
-        if (!contaAtual) {
-            const contaData = {
-                mesaId: mesaIdSelecionada,
-                mesaNumero: parseInt(mesaSelecionada.numero),
-                status: 'aberta',
-                total: 0,
-                criadaEm: firebase.firestore.FieldValue.serverTimestamp(),
-                fechadaEm: null
-            };
-            
-            const docRef = await contasRef.add(contaData);
-            contaAtual = docRef.id;
-            
-            await mesasRef.doc(mesaIdSelecionada).update({
-                status: 'ocupada',
-                contaAbertaId: contaAtual
-            });
-            
-            statusMesa.textContent = 'OCUPADA';
-            statusMesa.className = 'status-badge ocupada';
-        }
-        
-        const batch = db.batch();
-        const itensParaSalvar = [];
-        
-        for (const item of carrinho) {
-            if (item.id) {
-                const itemRef = itensContaRef.doc(item.id);
-                batch.update(itemRef, {
-                    quantidade: item.quantidade,
-                    subtotal: item.subtotal
-                });
-            } else {
-                const itemData = {
-                    contaId: contaAtual,
-                    produtoId: item.produtoId,
-                    nome: item.nome,
-                    preco: item.preco,
-                    quantidade: item.quantidade,
-                    subtotal: item.subtotal
-                };
-                const newRef = itensContaRef.doc();
-                batch.set(newRef, itemData);
-                item.id = newRef.id;
-            }
-            itensParaSalvar.push(item);
-        }
-        
-        const pedidoData = {
-            contaId: contaAtual,
-            mesaNumero: parseInt(mesaSelecionada.numero),
-            itens: carrinho.map(item => ({
-                nome: item.nome,
-                quantidade: item.quantidade,
-                preco: item.preco
-            })),
-            status: 'aguardando',
-            criadoEm: firebase.firestore.FieldValue.serverTimestamp(),
-            prontoEm: null
-        };
-        
-        await pedidosRef.add(pedidoData);
-        
-        let totalConta = 0;
-        for (const item of itensParaSalvar) {
-            totalConta += item.subtotal;
-        }
-        
-        await contasRef.doc(contaAtual).update({
-            total: totalConta
-        });
-        
-        await batch.commit();
-        
-        carrinho = [];
-        atualizarCarrinho();
-        
-        await carregarItensConta(contaAtual);
-        
-        mostrarMensagem('✅ Pedido enviado para a cozinha!');
-        
-    } catch (error) {
-        console.error('❌ Erro ao finalizar pedido:', error);
-        mostrarMensagem('Erro ao salvar pedido. Verifique sua conexão.');
-    }
-});
-
-// ==========================================
-// NAVEGAÇÃO
-// ==========================================
-
-btnVoltarMesas.addEventListener('click', voltarParaMesas);
-
-function voltarParaMesas() {
-    telaPedido.style.display = 'none';
-    telaMesas.style.display = 'block';
-    mesaSelecionada = null;
-    contaAtual = null;
-    carrinho = [];
-    atualizarCarrinho();
-    carregarMesas();
-}
-
-// ==========================================
-// CARREGAR MESAS EM TEMPO REAL
-// ==========================================
-
-function carregarMesas() {
-    mesasRef.onSnapshot((snapshot) => {
-        renderizarMesas(snapshot);
-    }, (error) => {
-        console.error('❌ Erro ao carregar mesas:', error);
-        mostrarMensagem('Erro ao carregar mesas. Verifique sua conexão.');
-    });
-}
-
-// ==========================================
-// MODAIS
-// ==========================================
-
-function mostrarConfirmacao(mensagem, callback) {
-    mensagemModal.textContent = mensagem;
-    modalConfirmacao.style.display = 'flex';
-    modalCancelar.style.display = 'block';
-    modalConfirmar.style.display = 'block';
-    modalCallback = callback;
-}
-
-function mostrarMensagem(mensagem) {
-    mensagemTexto.textContent = mensagem;
-    modalMensagem.style.display = 'flex';
-    modalCancelar.style.display = 'none';
-    modalConfirmar.style.display = 'none';
-}
-
-modalCancelar.addEventListener('click', () => {
-    modalConfirmacao.style.display = 'none';
-    modalCallback = null;
-});
-
-modalConfirmar.addEventListener('click', () => {
-    modalConfirmacao.style.display = 'none';
-    if (modalCallback) {
-        modalCallback();
-        modalCallback = null;
-    }
-});
-
-modalMensagemOk.addEventListener('click', () => {
-    modalMensagem.style.display = 'none';
-});
-
-modalConfirmacao.addEventListener('click', (e) => {
-    if (e.target === modalConfirmacao) {
-        modalConfirmacao.style.display = 'none';
-        modalCallback = null;
-    }
-});
-
-modalMensagem.addEventListener('click', (e) => {
-    if (e.target === modalMensagem) {
-        modalMensagem.style.display = 'none';
-    }
-});
-
-// ==========================================
-// INICIALIZAÇÃO DO SISTEMA
-// ==========================================
-
-async function iniciarSistema() {
-    try {
-        await db.collection('_').get().catch(() => {
-            throw new Error('Falha ao conectar ao Firebase');
-        });
-        
-        await inicializarMesas();
-        carregarMesas();
-        await carregarProdutos();
-        
-        console.log('🚀 Sistema do Garçom inicializado com sucesso!');
-        console.log('📝 Garçom: apenas faz pedidos. Caixa finaliza as contas.');
-    } catch (error) {
-        console.error('❌ Erro ao iniciar sistema:', error);
-        mostrarMensagem('Erro ao conectar ao Firebase. Verifique sua configuração.');
-    }
-}
-
-document.addEventListener('DOMContentLoaded', iniciarSistema);
